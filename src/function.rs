@@ -29,12 +29,23 @@ pub fn eval_tool_calls(config: &GlobalConfig, mut calls: Vec<ToolCall>) -> Resul
     }
     let mut is_all_null = true;
     for call in calls {
-        let mut result = call.eval(config)?;
-        if result.is_null() {
-            result = json!("DONE");
-        } else {
-            is_all_null = false;
-        }
+        let result = match call.eval(config) {
+            Ok(result) => {
+                if result.is_null() {
+                    json!("DONE")
+                } else {
+                    is_all_null = false;
+                    result
+                }
+            },
+            Err(e) => {
+                is_all_null = false;
+                json!({
+                    "error": true,
+                    "message": e.to_string()
+                })
+            }
+        };
         output.push(ToolResult::new(call, result));
     }
     if is_all_null {
@@ -276,10 +287,15 @@ pub fn run_llm_function(
     if *IS_STDOUT_TERMINAL {
         println!("{}", dimmed_text(&prompt));
     }
-    let exit_code = run_command(&cmd_name, &cmd_args, Some(envs))
+    let (success, stdout, stderr) = run_command_with_output(&cmd_name, &cmd_args, Some(envs))
         .map_err(|err| anyhow!("Unable to run {cmd_name}, {err}"))?;
-    if exit_code != 0 {
-        bail!("Tool call exit with {exit_code}");
+    if !success {
+        println!("error: tool call failed: {:?}", stderr);
+        bail!(json!({
+            "error": true,
+            "stdout": stdout,
+            "stderr": stderr
+        }));
     }
     let mut output = None;
     if temp_file.exists() {
