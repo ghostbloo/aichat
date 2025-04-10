@@ -38,9 +38,11 @@ const DEFAULT_MODEL_NAME: &str = "default";
 const PLAYGROUND_HTML: &[u8] = include_bytes!("../assets/playground.html");
 const ARENA_HTML: &[u8] = include_bytes!("../assets/arena.html");
 
+static RE_SESSION_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/sessions/([^/]+)$").unwrap());
 static RE_AGENT_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)$").unwrap());
 static RE_AGENT_FUNCTIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/functions$").unwrap());
 static RE_AGENT_SESSIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions$").unwrap());
+static RE_AGENT_SESSION_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions/([^/]+)$").unwrap());
 
 type AppResponse = Response<BoxBody<Bytes, Infallible>>;
 
@@ -171,11 +173,19 @@ impl Server {
             "/v1/roles" => self.list_roles(),
             "/v1/rags" => self.list_rags(),
             "/v1/agents" => self.list_agents(),
+            "/v1/sessions" => self.list_sessions(),
             "/v1/rags/search" => self.search_rag(req).await,
             "/playground" | "/playground.html" => self.playground_page(),
             "/arena" | "/arena.html" => self.arena_page(),
             _ => {
-                if let Some(captures) = RE_AGENT_PATH.captures(path) {
+                if let Some(captures) = RE_SESSION_PATH.captures(path) {
+                    if let Some(session_id) = captures.get(1) {
+                        self.get_session(session_id.as_str())
+                    } else {
+                        status = StatusCode::BAD_REQUEST;
+                        Err(anyhow!("Invalid session path"))
+                    }
+                } else if let Some(captures) = RE_AGENT_PATH.captures(path) {
                     if let Some(name) = captures.get(1) {
                         self.get_agent(name.as_str())
                     } else {
@@ -195,6 +205,18 @@ impl Server {
                     } else {
                         status = StatusCode::BAD_REQUEST;
                         Err(anyhow!("Invalid agent sessions path"))
+                    }
+                } else if let Some(captures) = RE_AGENT_SESSION_PATH.captures(path) {
+                    if let Some(name) = captures.get(1) {
+                        if let Some(session_id) = captures.get(2) {
+                            self.get_agent_session(name.as_str(), session_id.as_str())
+                        } else {
+                            status = StatusCode::BAD_REQUEST;
+                            Err(anyhow!("Invalid agent session path"))
+                        }
+                    } else {
+                        status = StatusCode::BAD_REQUEST;
+                        Err(anyhow!("Invalid agent session path"))
                     }
                 } else {
                     status = StatusCode::NOT_FOUND;
@@ -251,6 +273,25 @@ impl Server {
         Ok(res)
     }
 
+    fn list_sessions(&self) -> Result<AppResponse> {
+        let sessions = list_file_names(&Config::config_dir().join("sessions"), ".yaml");
+        let data = json!({ "data": sessions });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn get_session(&self, session_id: &str) -> Result<AppResponse> {
+        let session_path = Config::config_dir().join("sessions").join(session_id).with_extension("yaml");
+        let session = Session::load(&self.config, session_id, &session_path)?;
+        let data = json!({ "data": session });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
     fn list_agents(&self) -> Result<AppResponse> {
         let data = json!({ "data": self.agents });
         let res = Response::builder()
@@ -291,6 +332,16 @@ impl Server {
     fn get_agent_sessions(&self, name: &str) -> Result<AppResponse> {
         let sessions = list_file_names(&Config::agent_sessions_dir(name), ".yaml");
         let data = json!({ "data": sessions });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn get_agent_session(&self, agent_name: &str, session_id: &str) -> Result<AppResponse> {
+        let session_path = Config::agent_sessions_dir(agent_name).join(session_id).with_extension("yaml");
+        let session = Session::load(&self.config, session_id, &session_path)?;
+        let data = json!({ "data": session });
         let res = Response::builder()
             .header("Content-Type", "application/json; charset=utf-8")
             .body(Full::new(Bytes::from(data.to_string())).boxed())?;
