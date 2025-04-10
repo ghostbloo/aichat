@@ -73,18 +73,7 @@ pub struct Functions {
 
 impl Functions {
     pub fn init(declarations_path: &Path) -> Result<Self> {
-        let declarations: Vec<FunctionDeclaration> = if declarations_path.exists() {
-            let ctx = || {
-                format!(
-                    "Failed to load functions at {}",
-                    declarations_path.display()
-                )
-            };
-            let content = fs::read_to_string(declarations_path).with_context(ctx)?;
-            serde_json::from_str(&content).with_context(ctx)?
-        } else {
-            vec![]
-        };
+        let declarations = load_declarations(declarations_path)?;
 
         Ok(Self { declarations })
     }
@@ -104,6 +93,19 @@ impl Functions {
     pub fn is_empty(&self) -> bool {
         self.declarations.is_empty()
     }
+}
+
+pub fn load_declarations(path: &Path) -> Result<Vec<FunctionDeclaration>> {
+    let declarations: Vec<FunctionDeclaration> = if path.exists() {
+        let ctx = || {
+            format!("Failed to load functions at {}", path.display())
+        };
+        let content = fs::read_to_string(path).with_context(ctx)?;
+        serde_json::from_str(&content).with_context(ctx)?
+    } else {
+        vec![]
+    };
+    Ok(declarations)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

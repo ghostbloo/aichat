@@ -3,7 +3,9 @@ mod input;
 mod role;
 mod session;
 
-pub use self::agent::{complete_agent_variables, list_agents, Agent, AgentVariables};
+pub use self::agent::{
+    complete_agent_variables, list_agents, Agent, AgentDefinition, AgentConfig, AgentVariables,
+};
 pub use self::input::Input;
 pub use self::role::{
     Role, RoleLike, CODE_ROLE, CREATE_TITLE_ROLE, EXPLAIN_SHELL_ROLE, SHELL_ROLE,
@@ -59,6 +61,7 @@ const FUNCTIONS_DIR_NAME: &str = "functions";
 const FUNCTIONS_FILE_NAME: &str = "functions.json";
 const FUNCTIONS_BIN_DIR_NAME: &str = "bin";
 const AGENTS_DIR_NAME: &str = "agents";
+const AGENT_DEFINITION_FILE_NAME: &str = "index.yaml";
 
 const CLIENTS_FIELD: &str = "clients";
 
@@ -423,6 +426,14 @@ impl Config {
             Ok(value) => PathBuf::from(value),
             Err(_) => Self::agents_functions_dir().join(name),
         }
+    }
+
+    pub fn agent_definition_file(name: &str) -> PathBuf {
+        Self::agent_functions_dir(name).join(AGENT_DEFINITION_FILE_NAME)
+    }
+
+    pub fn agent_sessions_dir(name: &str) -> PathBuf {
+        Self::agent_data_dir(name).join(SESSIONS_DIR_NAME)
     }
 
     pub fn models_override_file() -> PathBuf {
@@ -1060,6 +1071,15 @@ impl Config {
     pub fn has_role(name: &str) -> bool {
         let names = Self::list_roles(true);
         names.contains(&name.to_string())
+    }
+
+    /// Create AgentConfigs for each agent in the agents directory.
+    pub fn list_agents() -> Vec<String> {
+        read_dir(Self::agents_data_dir())
+            .unwrap()
+            .flatten()
+            .map(|v| v.file_name().to_str().unwrap().to_string())
+            .collect()
     }
 
     pub fn use_session(&mut self, session_name: Option<&str>) -> Result<()> {

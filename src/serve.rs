@@ -11,7 +11,9 @@ use hyper::{
     service::service_fn,
 };
 use hyper_util::rt::{TokioExecutor, TokioIo};
+use once_cell::sync::Lazy;
 use parking_lot::RwLock;
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -35,6 +37,10 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 const DEFAULT_MODEL_NAME: &str = "default";
 const PLAYGROUND_HTML: &[u8] = include_bytes!("../assets/playground.html");
 const ARENA_HTML: &[u8] = include_bytes!("../assets/arena.html");
+
+static RE_AGENT_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)$").unwrap());
+static RE_AGENT_FUNCTIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/functions$").unwrap());
+static RE_AGENT_SESSIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions$").unwrap());
 
 type AppResponse = Response<BoxBody<Bytes, Infallible>>;
 
@@ -68,6 +74,7 @@ struct Server {
     config: Config,
     models: Vec<Value>,
     roles: Vec<Role>,
+    agents: Vec<String>,
     rags: Vec<String>,
 }
 
@@ -103,6 +110,7 @@ impl Server {
             models,
             roles: Config::all_roles(),
             rags: Config::list_rags(),
+            agents: Config::list_agents(),
         }
     }
 
@@ -155,28 +163,46 @@ impl Server {
         }
 
         let mut status = StatusCode::OK;
-        let res = if path == "/v1/chat/completions" {
-            self.chat_completions(req).await
-        } else if path == "/v1/embeddings" {
-            self.embeddings(req).await
-        } else if path == "/v1/rerank" {
-            self.rerank(req).await
-        } else if path == "/v1/models" {
-            self.list_models()
-        } else if path == "/v1/roles" {
-            self.list_roles()
-        } else if path == "/v1/rags" {
-            self.list_rags()
-        } else if path == "/v1/rags/search" {
-            self.search_rag(req).await
-        } else if path == "/playground" || path == "/playground.html" {
-            self.playground_page()
-        } else if path == "/arena" || path == "/arena.html" {
-            self.arena_page()
-        } else {
-            status = StatusCode::NOT_FOUND;
-            Err(anyhow!("Not Found"))
+        let res = match path {
+            "/v1/chat/completions" => self.chat_completions(req).await,
+            "/v1/embeddings" => self.embeddings(req).await,
+            "/v1/rerank" => self.rerank(req).await,
+            "/v1/models" => self.list_models(),
+            "/v1/roles" => self.list_roles(),
+            "/v1/rags" => self.list_rags(),
+            "/v1/agents" => self.list_agents(),
+            "/v1/rags/search" => self.search_rag(req).await,
+            "/playground" | "/playground.html" => self.playground_page(),
+            "/arena" | "/arena.html" => self.arena_page(),
+            _ => {
+                if let Some(captures) = RE_AGENT_PATH.captures(path) {
+                    if let Some(name) = captures.get(1) {
+                        self.get_agent(name.as_str())
+                    } else {
+                        status = StatusCode::BAD_REQUEST;
+                        Err(anyhow!("Invalid agent path"))
+                    }
+                } else if let Some(captures) = RE_AGENT_FUNCTIONS_PATH.captures(path) {
+                    if let Some(name) = captures.get(1) {
+                        self.get_agent_functions(name.as_str())
+                    } else {
+                        status = StatusCode::BAD_REQUEST;
+                        Err(anyhow!("Invalid agent functions path"))
+                    }
+                } else if let Some(captures) = RE_AGENT_SESSIONS_PATH.captures(path) {
+                    if let Some(name) = captures.get(1) {
+                        self.get_agent_sessions(name.as_str())
+                    } else {
+                        status = StatusCode::BAD_REQUEST;
+                        Err(anyhow!("Invalid agent sessions path"))
+                    }
+                } else {
+                    status = StatusCode::NOT_FOUND;
+                    Err(anyhow!("Not Found"))
+                }
+            }
         };
+
         let mut res = match res {
             Ok(res) => {
                 info!("{method} {uri} {}", status.as_u16());
@@ -219,6 +245,52 @@ impl Server {
 
     fn list_roles(&self) -> Result<AppResponse> {
         let data = json!({ "data": self.roles });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn list_agents(&self) -> Result<AppResponse> {
+        let data = json!({ "data": self.agents });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn get_agent(&self, name: &str) -> Result<AppResponse> {
+        if !self.agents.contains(&name.to_string()) {
+            return Err(anyhow!("Agent not found"));
+        }
+        let config = AgentConfig::load(&Config::agent_config_file(name))?;
+        let definition = AgentDefinition::load(&Config::agent_definition_file(name))?;
+        let data = json!({ "data": {
+            "config": config,
+            "definition": definition,
+        } });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn get_agent_functions(&self, name: &str) -> Result<AppResponse> {
+        if !self.agents.contains(&name.to_string()) {
+            return Err(anyhow!("Agent not found"));
+        }
+        let functions_path = Config::agent_functions_dir(name).join("functions.json");
+        let functions = load_declarations(&functions_path)?;
+        let data = json!({ "data": functions });
+        let res = Response::builder()
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(Full::new(Bytes::from(data.to_string())).boxed())?;
+        Ok(res)
+    }
+
+    fn get_agent_sessions(&self, name: &str) -> Result<AppResponse> {
+        let sessions = list_file_names(&Config::agent_sessions_dir(name), ".yaml");
+        let data = json!({ "data": sessions });
         let res = Response::builder()
             .header("Content-Type", "application/json; charset=utf-8")
             .body(Full::new(Bytes::from(data.to_string())).boxed())?;
