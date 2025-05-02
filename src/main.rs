@@ -2,6 +2,7 @@ mod cli;
 mod client;
 mod config;
 mod function;
+mod memory;
 mod rag;
 mod render;
 mod repl;
