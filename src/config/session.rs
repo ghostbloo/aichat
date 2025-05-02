@@ -60,6 +60,10 @@ pub struct Session {
     compressing: bool,
     #[serde(skip)]
     autoname: Option<AutoName>,
+
+    /// ID of the corresponding Chat on the memory server
+    #[serde(skip, skip_serializing_if = "Option::is_none")]
+    chat_id: Option<String>,
 }
 
 impl Session {
@@ -119,6 +123,7 @@ impl Session {
         self.dirty
     }
 
+    /// Retrieve the save_session flag from the Session.
     pub fn save_session(&self) -> Option<bool> {
         self.save_session
     }
@@ -133,6 +138,15 @@ impl Session {
 
     pub fn user_messages_len(&self) -> usize {
         self.messages.iter().filter(|v| v.role.is_user()).count()
+    }
+
+    pub fn chat_id(&self) -> Option<&str> {
+        self.chat_id.as_deref()
+    }
+
+    pub fn set_chat_id(&mut self, chat_id: &str) {
+        self.chat_id = Some(chat_id.to_string());
+        self.dirty = true;
     }
 
     pub fn export(&self) -> Result<String> {
@@ -536,6 +550,10 @@ impl Session {
             messages.push(Message::new(MessageRole::User, input.message_content()));
         }
         messages
+    }
+
+    pub fn get_compressed_messages(&self) -> Vec<Message> {
+        self.compressed_messages.clone()
     }
 }
 
