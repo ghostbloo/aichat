@@ -1,19 +1,16 @@
-mod chats;
-mod savehandler;
+pub mod chats;
 
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
-/// Client for making requests to the memory server.
-pub struct MemoryClient {
-    pub client: Client,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MemoryConfig {
     pub base_url: String,
 }
 
-impl Default for MemoryClient {
-    fn default() -> Self {
-        Self {
-            base_url: "http://localhost:3000".to_string(),
-            client: Client::new(),
-        }
-    }
+/// Client for making requests to the memory server.
+#[derive(Debug, Clone)]
+pub struct MemoryClient {
+    pub client: Client,
+    pub config: MemoryConfig,
 }

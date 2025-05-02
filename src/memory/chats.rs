@@ -1,7 +1,7 @@
 use crate::client::MessageRole;
 use crate::memory::MemoryClient;
 use anyhow::{Context, Result};
-use log::warn;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -24,14 +24,17 @@ pub struct ChatMessage {
 
 /// Create a new Chat on the memory server.
 pub async fn chat_create(client: &MemoryClient, session_id: &str) -> Result<Chat> {
+    debug!("Creating chat for session {}", session_id);
+
     let response = client
         .client
-        .post(format!("{}/chats", &client.base_url))
+        .post(format!("{}/chats", &client.config.base_url))
         .json(&json!({
             "sessionId": session_id,
         }))
         .send()
         .await?;
+    debug!("Chat creation response: {:?}", response);
 
     if !response.status().is_success() {
         let error = response.text().await.unwrap_or_default();
@@ -43,6 +46,7 @@ pub async fn chat_create(client: &MemoryClient, session_id: &str) -> Result<Chat
         .json::<Chat>()
         .await
         .context("Failed to parse chat")?;
+    debug!("Chat created successfully: {}", chat.id);
 
     Ok(chat)
 }
@@ -51,7 +55,7 @@ pub async fn chat_create(client: &MemoryClient, session_id: &str) -> Result<Chat
 pub async fn chat_get(client: &MemoryClient, chat_id: &str) -> Result<Chat> {
     let response = client
         .client
-        .get(format!("{}/chats/{}", &client.base_url, chat_id))
+        .get(format!("{}/chats/{}", &client.config.base_url, chat_id))
         .send()
         .await?;
 
@@ -72,7 +76,7 @@ pub async fn chat_get(client: &MemoryClient, chat_id: &str) -> Result<Chat> {
 pub async fn chat_list(client: &MemoryClient) -> Result<Vec<Chat>> {
     let response = client
         .client
-        .get(format!("{}/chats", &client.base_url))
+        .get(format!("{}/chats", &client.config.base_url))
         .send()
         .await?;
 
@@ -95,9 +99,11 @@ pub async fn chat_add_messages(
     chat_id: &str,
     messages: Vec<ChatMessage>,
 ) -> Result<()> {
+    debug!("Adding {} messages to chat {}", messages.len(), chat_id);
+
     let response = client
         .client
-        .post(format!("{}/chats/{}/messages", &client.base_url, chat_id))
+        .put(format!("{}/chats/{}/messages", &client.config.base_url, chat_id))
         .json(&json!({
             "messages": messages,
         }))
@@ -120,7 +126,7 @@ pub async fn chat_get_messages(
 ) -> Result<Vec<ChatMessage>> {
     let response = client
         .client
-        .get(format!("{}/chats/{}/messages", &client.base_url, chat_id))
+        .get(format!("{}/chats/{}/messages", &client.config.base_url, chat_id))
         .send()
         .await?;
 

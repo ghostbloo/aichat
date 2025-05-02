@@ -44,6 +44,10 @@ pub struct Session {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     data_urls: HashMap<String, String>,
 
+    /// ID of the corresponding Chat on the memory server
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chat_id: Option<String>,
+
     #[serde(skip)]
     model: Model,
     #[serde(skip)]
@@ -60,10 +64,6 @@ pub struct Session {
     compressing: bool,
     #[serde(skip)]
     autoname: Option<AutoName>,
-
-    /// ID of the corresponding Chat on the memory server
-    #[serde(skip, skip_serializing_if = "Option::is_none")]
-    chat_id: Option<String>,
 }
 
 impl Session {

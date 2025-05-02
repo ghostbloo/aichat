@@ -7,9 +7,9 @@ use self::highlighter::ReplHighlighter;
 use self::prompt::ReplPrompt;
 
 use crate::client::{call_chat_completions, call_chat_completions_streaming};
+use crate::config::sync::sync_session;
 use crate::config::{
-    macro_execute, AgentVariables, AssertState, Config, GlobalConfig, Input, LastMessage,
-    StateFlags,
+    macro_execute, AgentVariables, AssertState, Config, GlobalConfig, Input, LastMessage, StateFlags,
 };
 use crate::render::render_error;
 use crate::utils::{
@@ -507,6 +507,7 @@ pub async fn run_repl_command(
                 }
                 Some(("session", name)) => {
                     config.write().save_session(name)?;
+                    sync_session(config).await?;
                 }
                 _ => {
                     println!(r#"Usage: .save <role|session> [name]"#)

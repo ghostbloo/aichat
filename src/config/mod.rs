@@ -2,9 +2,10 @@ mod agent;
 mod input;
 mod role;
 mod session;
+pub mod sync;
 
 pub use self::agent::{
-    complete_agent_variables, list_agents, Agent, AgentDefinition, AgentConfig, AgentVariables,
+    complete_agent_variables, list_agents, Agent, AgentConfig, AgentDefinition, AgentVariables,
 };
 pub use self::input::Input;
 pub use self::role::{
@@ -17,6 +18,7 @@ use crate::client::{
     Model, ModelType, ProviderModels, OPENAI_COMPATIBLE_PROVIDERS,
 };
 use crate::function::{FunctionDeclaration, Functions, ToolResult};
+use crate::memory::{MemoryConfig, MemoryClient};
 use crate::rag::Rag;
 use crate::render::{MarkdownRender, RenderOptions};
 use crate::repl::{run_repl_command, split_args_text};
@@ -148,6 +150,8 @@ pub struct Config {
     pub save_shell_history: bool,
     pub sync_models_url: Option<String>,
 
+    pub memory: Option<MemoryConfig>,
+
     pub clients: Vec<ClientConfig>,
 
     #[serde(skip)]
@@ -174,6 +178,8 @@ pub struct Config {
     pub rag: Option<Arc<Rag>>,
     #[serde(skip)]
     pub agent: Option<Agent>,
+    #[serde(skip)]
+    pub memory_client: Option<MemoryClient>,
 }
 
 impl Default for Config {
@@ -222,6 +228,9 @@ impl Default for Config {
             user_agent: None,
             save_shell_history: true,
             sync_models_url: None,
+
+            memory: None,
+            memory_client: None,
 
             clients: vec![],
 
@@ -280,6 +289,7 @@ impl Config {
             config.setup_model()?;
             config.setup_document_loaders();
             config.setup_user_agent();
+            config.setup_memory_client();
             Ok(())
         };
         let ret = setup(&mut config);
@@ -2497,6 +2507,19 @@ impl Config {
                 env!("CARGO_PKG_VERSION")
             ));
         }
+    }
+
+    fn setup_memory_client(&mut self) {
+        if let Some(memory) = self.memory.clone() {
+            self.memory_client = Some(MemoryClient {
+                client: reqwest::Client::new(),
+                config: memory,
+            });
+        }
+    }
+
+    pub fn memory_client(&self) -> Option<&MemoryClient> {
+        self.memory_client.as_ref()
     }
 }
 
