@@ -151,7 +151,7 @@ fn parse_glob(path_str: &str) -> Result<(String, Option<Vec<String>>, bool)> {
     }
 }
 
-#[async_recursion::async_recursion]
+/// Recursively traverses directories to find files matching certain criteria.
 async fn list_files(
     files: &mut IndexSet<String>,
     entry_path: &Path,
@@ -172,7 +172,7 @@ async fn list_files(
             let path = entry.path();
             if path.is_dir() {
                 if !current_only {
-                    list_files(files, &path, suffixes, current_only, bail_non_exist).await?;
+                    Box::pin(list_files(files, &path, suffixes, current_only, bail_non_exist)).await?;
                 }
             } else {
                 add_file(files, suffixes, &path);

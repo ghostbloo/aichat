@@ -199,7 +199,9 @@ async fn run(config: GlobalConfig, cli: Cli, text: Option<String>) -> Result<()>
     }
 }
 
-#[async_recursion::async_recursion]
+/// CLI handler for processing and sending user input to a completions model. Stores the response in session state.
+///
+/// This function uses recursion when handling tool calls.
 async fn start_directive(
     config: &GlobalConfig,
     input: Input,
@@ -226,12 +228,12 @@ async fn start_directive(
         .after_chat_completion(&input, &output, &tool_results)?;
 
     if !tool_results.is_empty() {
-        start_directive(
+        Box::pin(start_directive(
             config,
             input.merge_tool_results(output, tool_results),
             code_mode,
             abort_signal,
-        )
+        ))
         .await?;
     }
 
@@ -244,7 +246,9 @@ async fn start_interactive(config: &GlobalConfig) -> Result<()> {
     repl.run().await
 }
 
-#[async_recursion::async_recursion]
+/// Prompts an LLM to write a shell command from a natural language prompt.
+/// 
+/// This function is recursive when the `-r` flag is passed (for revising the command).
 async fn shell_execute(
     config: &GlobalConfig,
     shell: &Shell,
@@ -302,7 +306,7 @@ async fn shell_execute(
                     let revision = Text::new("Enter your revision:").prompt()?;
                     let text = format!("{}\n{revision}", input.text());
                     input.set_text(text);
-                    return shell_execute(config, shell, input, abort_signal.clone()).await;
+                    return Box::pin(shell_execute(config, shell, input, abort_signal.clone())).await;
                 }
                 "d" => {
                     let role = config.read().retrieve_role(EXPLAIN_SHELL_ROLE)?;

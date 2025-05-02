@@ -705,7 +705,9 @@ pub async fn run_repl_command(
     Ok(false)
 }
 
-#[async_recursion::async_recursion]
+/// REPL handler for processing and sending user input to a completions model. Stores the response in session state.
+/// 
+/// This function uses recursion when handling tool calls.
 async fn ask(
     config: &GlobalConfig,
     abort_signal: AbortSignal,
@@ -733,12 +735,12 @@ async fn ask(
         .write()
         .after_chat_completion(&input, &output, &tool_results)?;
     if !tool_results.is_empty() {
-        ask(
+        Box::pin(ask(
             config,
             abort_signal,
             input.merge_tool_results(output, tool_results),
             false,
-        )
+        ))
         .await
     } else {
         Config::maybe_autoname_session(config.clone());

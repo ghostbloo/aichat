@@ -2461,7 +2461,6 @@ impl WorkingMode {
     }
 }
 
-#[async_recursion::async_recursion]
 pub async fn macro_execute(
     config: &GlobalConfig,
     name: &str,
@@ -2493,7 +2492,7 @@ pub async fn macro_execute(
     for step in &macro_value.steps {
         let command = Macro::interpolate_command(step, &variables);
         println!(">> {}", multiline_text(&command));
-        run_repl_command(&config, abort_signal.clone(), &command).await?;
+        Box::pin(run_repl_command(&config, abort_signal.clone(), &command)).await?;
     }
     Ok(())
 }
