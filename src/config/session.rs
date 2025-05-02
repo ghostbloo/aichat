@@ -387,6 +387,13 @@ impl Session {
         self.dirty = true;
     }
 
+    pub fn set_messages_synced(&mut self) {
+        self.dirty = true;
+        self.compressed_messages.iter_mut().for_each(|m| {
+            m.is_sync = true;
+        });
+    }
+
     /// Checks if session needs auto-naming
     pub fn need_autoname(&self) -> bool {
         self.autoname.as_ref().map(|v| v.need()).unwrap_or_default()

@@ -20,6 +20,7 @@ pub struct Chat {
 pub struct ChatMessage {
     pub role: MessageRole,
     pub content: String,
+    pub is_sync: bool,
 }
 
 /// Create a new Chat on the memory server.

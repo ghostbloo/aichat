@@ -506,8 +506,7 @@ pub async fn run_repl_command(
                     config.write().save_role(name)?;
                 }
                 Some(("session", name)) => {
-                    config.write().save_session(name)?;
-                    sync_session(config).await?;
+                    sync_session(config, name).await?;
                 }
                 _ => {
                     println!(r#"Usage: .save <role|session> [name]"#)

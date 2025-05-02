@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct Message {
     pub role: MessageRole,
     pub content: MessageContent,
+    #[serde(default)]
+    pub is_sync: bool,
 }
 
 impl Default for Message {
@@ -15,13 +17,18 @@ impl Default for Message {
         Self {
             role: MessageRole::User,
             content: MessageContent::Text(String::new()),
+            is_sync: false,
         }
     }
 }
 
 impl Message {
     pub fn new(role: MessageRole, content: MessageContent) -> Self {
-        Self { role, content }
+        Self {
+            role,
+            content,
+            is_sync: false,
+        }
     }
 
     pub fn merge_system(&mut self, system: MessageContent) {
@@ -214,6 +221,7 @@ pub fn patch_messages(messages: &mut Vec<Message>, model: &Model) {
                 Message {
                     role: MessageRole::System,
                     content: MessageContent::Text(prefix.to_string()),
+                    is_sync: false,
                 },
             );
         }
