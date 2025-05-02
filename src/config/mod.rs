@@ -245,6 +245,7 @@ impl Default for Config {
 pub type GlobalConfig = Arc<RwLock<Config>>;
 
 impl Config {
+    /// Initializes a new config with the given working mode and info flag
     pub async fn init(working_mode: WorkingMode, info_flag: bool) -> Result<Self> {
         let config_path = Self::config_file();
         let mut config = if !config_path.exists() {
@@ -288,6 +289,7 @@ impl Config {
         Ok(config)
     }
 
+    /// Returns the config directory path
     pub fn config_dir() -> PathBuf {
         if let Ok(v) = env::var(get_env_name("config_dir")) {
             PathBuf::from(v)
@@ -299,10 +301,12 @@ impl Config {
         }
     }
 
+    /// Returns the local path for a given name
     pub fn local_path(name: &str) -> PathBuf {
         Self::config_dir().join(name)
     }
 
+    /// Returns the config file path
     pub fn config_file() -> PathBuf {
         match env::var(get_env_name("config_file")) {
             Ok(value) => PathBuf::from(value),
@@ -310,6 +314,7 @@ impl Config {
         }
     }
 
+    /// Returns the roles directory path
     pub fn roles_dir() -> PathBuf {
         match env::var(get_env_name("roles_dir")) {
             Ok(value) => PathBuf::from(value),
@@ -317,10 +322,12 @@ impl Config {
         }
     }
 
+    /// Returns the path to a specific role file
     pub fn role_file(name: &str) -> PathBuf {
         Self::roles_dir().join(format!("{name}.md"))
     }
 
+    /// Returns the macros directory path
     pub fn macros_dir() -> PathBuf {
         match env::var(get_env_name("macros_dir")) {
             Ok(value) => PathBuf::from(value),
@@ -328,10 +335,12 @@ impl Config {
         }
     }
 
+    /// Returns the path to a specific macro file
     pub fn macro_file(name: &str) -> PathBuf {
         Self::macros_dir().join(format!("{name}.yaml"))
     }
 
+    /// Returns the env file path
     pub fn env_file() -> PathBuf {
         match env::var(get_env_name("env_file")) {
             Ok(value) => PathBuf::from(value),
@@ -339,6 +348,7 @@ impl Config {
         }
     }
 
+    /// Returns the messages file path
     pub fn messages_file(&self) -> PathBuf {
         match &self.agent {
             None => match env::var(get_env_name("messages_file")) {
@@ -349,6 +359,7 @@ impl Config {
         }
     }
 
+    /// Returns the sessions directory path
     pub fn sessions_dir(&self) -> PathBuf {
         match &self.agent {
             None => match env::var(get_env_name("sessions_dir")) {
@@ -359,6 +370,7 @@ impl Config {
         }
     }
 
+    /// Returns the rags directory path
     pub fn rags_dir() -> PathBuf {
         match env::var(get_env_name("rags_dir")) {
             Ok(value) => PathBuf::from(value),
@@ -366,6 +378,7 @@ impl Config {
         }
     }
 
+    /// Returns the functions directory path
     pub fn functions_dir() -> PathBuf {
         match env::var(get_env_name("functions_dir")) {
             Ok(value) => PathBuf::from(value),
@@ -373,14 +386,17 @@ impl Config {
         }
     }
 
+    /// Returns the functions file path
     pub fn functions_file() -> PathBuf {
         Self::functions_dir().join(FUNCTIONS_FILE_NAME)
     }
 
+    /// Returns the functions binary directory path
     pub fn functions_bin_dir() -> PathBuf {
         Self::functions_dir().join(FUNCTIONS_BIN_DIR_NAME)
     }
 
+    /// Returns the path to a specific session file
     pub fn session_file(&self, name: &str) -> PathBuf {
         match name.split_once("/") {
             Some((dir, name)) => self.sessions_dir().join(dir).join(format!("{name}.yaml")),
@@ -388,6 +404,7 @@ impl Config {
         }
     }
 
+    /// Returns the path to a specific rag file
     pub fn rag_file(&self, name: &str) -> PathBuf {
         match &self.agent {
             Some(agent) => Self::agent_rag_file(agent.name(), name),
@@ -395,10 +412,12 @@ impl Config {
         }
     }
 
+    /// Returns the agents data directory path
     pub fn agents_data_dir() -> PathBuf {
         Self::local_path(AGENTS_DIR_NAME)
     }
 
+    /// Returns the data directory path for a specific agent
     pub fn agent_data_dir(name: &str) -> PathBuf {
         match env::var(format!("{}_DATA_DIR", normalize_env_name(name))) {
             Ok(value) => PathBuf::from(value),
@@ -406,6 +425,7 @@ impl Config {
         }
     }
 
+    /// Returns the config file path for a specific agent
     pub fn agent_config_file(name: &str) -> PathBuf {
         match env::var(format!("{}_CONFIG_FILE", normalize_env_name(name))) {
             Ok(value) => PathBuf::from(value),
@@ -413,14 +433,17 @@ impl Config {
         }
     }
 
+    /// Returns the rag file path for a specific agent
     pub fn agent_rag_file(agent_name: &str, rag_name: &str) -> PathBuf {
         Self::agent_data_dir(agent_name).join(format!("{rag_name}.yaml"))
     }
 
+    /// Returns the agents functions directory path
     pub fn agents_functions_dir() -> PathBuf {
         Self::functions_dir().join(AGENTS_DIR_NAME)
     }
 
+    /// Returns the functions directory path for a specific agent
     pub fn agent_functions_dir(name: &str) -> PathBuf {
         match env::var(format!("{}_FUNCTIONS_DIR", normalize_env_name(name))) {
             Ok(value) => PathBuf::from(value),
@@ -428,18 +451,22 @@ impl Config {
         }
     }
 
+    /// Returns the definition file path for a specific agent
     pub fn agent_definition_file(name: &str) -> PathBuf {
         Self::agent_functions_dir(name).join(AGENT_DEFINITION_FILE_NAME)
     }
 
+    /// Returns the sessions directory path for a specific agent
     pub fn agent_sessions_dir(name: &str) -> PathBuf {
         Self::agent_data_dir(name).join(SESSIONS_DIR_NAME)
     }
 
+    /// Returns the models override file path
     pub fn models_override_file() -> PathBuf {
         Self::local_path("models-override.yaml")
     }
 
+    /// Returns the current state flags for the config
     pub fn state(&self) -> StateFlags {
         let mut flags = StateFlags::empty();
         if let Some(session) = &self.session {
@@ -463,10 +490,12 @@ impl Config {
         flags
     }
 
+    /// Returns the serve address, defaulting to localhost:8000
     pub fn serve_addr(&self) -> String {
         self.serve_addr.clone().unwrap_or_else(|| SERVE_ADDR.into())
     }
 
+    /// Returns the log configuration based on environment
     pub fn log_config(is_serve: bool) -> Result<(LevelFilter, Option<PathBuf>)> {
         let log_level = env::var(get_env_name("log_level"))
             .ok()
@@ -497,6 +526,7 @@ impl Config {
         Ok((log_level, log_path))
     }
 
+    /// Opens the config file in the configured editor
     pub fn edit_config(&self) -> Result<()> {
         let config_path = Self::config_file();
         let editor = self.editor()?;
@@ -509,6 +539,7 @@ impl Config {
         Ok(())
     }
 
+    /// Returns the current model being used
     pub fn current_model(&self) -> &Model {
         if let Some(session) = self.session.as_ref() {
             session.model()
@@ -521,6 +552,7 @@ impl Config {
         }
     }
 
+    /// Returns a mutable reference to the current role-like object
     pub fn role_like_mut(&mut self) -> Option<&mut dyn RoleLike> {
         if let Some(session) = self.session.as_mut() {
             Some(session)
@@ -533,6 +565,7 @@ impl Config {
         }
     }
 
+    /// Extracts the current role settings
     pub fn extract_role(&self) -> Role {
         let mut role = if let Some(session) = self.session.as_ref() {
             session.to_role()
@@ -559,6 +592,7 @@ impl Config {
         role
     }
 
+    /// Returns formatted info about the current state
     pub fn info(&self) -> Result<String> {
         if let Some(agent) = &self.agent {
             let output = agent.export()?;
@@ -584,6 +618,7 @@ impl Config {
         }
     }
 
+    /// Returns system information about the config
     pub fn sysinfo(&self) -> Result<String> {
         let display_path = |path: &Path| path.display().to_string();
         let wrap = self
@@ -780,6 +815,7 @@ impl Config {
         Ok(())
     }
 
+    /// Sets the temperature parameter
     pub fn set_temperature(&mut self, value: Option<f64>) {
         match self.role_like_mut() {
             Some(role_like) => role_like.set_temperature(value),
@@ -787,6 +823,7 @@ impl Config {
         }
     }
 
+    /// Sets the top_p parameter
     pub fn set_top_p(&mut self, value: Option<f64>) {
         match self.role_like_mut() {
             Some(role_like) => role_like.set_top_p(value),
@@ -794,6 +831,7 @@ impl Config {
         }
     }
 
+    /// Sets the use_tools parameter
     pub fn set_use_tools(&mut self, value: Option<String>) {
         match self.role_like_mut() {
             Some(role_like) => role_like.set_use_tools(value),
@@ -801,6 +839,7 @@ impl Config {
         }
     }
 
+    /// Sets the save_session parameter
     pub fn set_save_session(&mut self, value: Option<bool>) {
         if let Some(session) = self.session.as_mut() {
             session.set_save_session(value);
@@ -809,6 +848,7 @@ impl Config {
         }
     }
 
+    /// Sets the compress_threshold parameter
     pub fn set_compress_threshold(&mut self, value: Option<usize>) {
         if let Some(session) = self.session.as_mut() {
             session.set_compress_threshold(value);
@@ -817,6 +857,7 @@ impl Config {
         }
     }
 
+    /// Sets the rag_reranker_model parameter
     pub fn set_rag_reranker_model(config: &GlobalConfig, value: Option<String>) -> Result<()> {
         if let Some(id) = &value {
             Model::retrieve_model(&config.read(), id, ModelType::Reranker)?;
@@ -832,6 +873,7 @@ impl Config {
         Ok(())
     }
 
+    /// Sets the rag_top_k parameter
     pub fn set_rag_top_k(config: &GlobalConfig, value: usize) -> Result<()> {
         let has_rag = config.read().rag.is_some();
         match has_rag {
@@ -844,6 +886,7 @@ impl Config {
         Ok(())
     }
 
+    /// Sets the text wrap configuration
     pub fn set_wrap(&mut self, value: &str) -> Result<()> {
         if value == "no" {
             self.wrap = None;
@@ -858,6 +901,7 @@ impl Config {
         Ok(())
     }
 
+    /// Sets the max_output_tokens parameter
     pub fn set_max_output_tokens(&mut self, value: Option<isize>) {
         match self.role_like_mut() {
             Some(role_like) => role_like.model_mut().set_max_tokens(value, true),
@@ -865,6 +909,7 @@ impl Config {
         };
     }
 
+    /// Sets the model to use
     pub fn set_model(&mut self, model_id: &str) -> Result<()> {
         let model = Model::retrieve_model(self, model_id, ModelType::Chat)?;
         match self.role_like_mut() {
@@ -876,17 +921,20 @@ impl Config {
         Ok(())
     }
 
+    /// Uses the given prompt as a temporary role
     pub fn use_prompt(&mut self, prompt: &str) -> Result<()> {
         let mut role = Role::new(TEMP_ROLE_NAME, prompt);
         role.set_model(self.current_model());
         self.use_role_obj(role)
     }
 
+    /// Uses the role with the given name
     pub fn use_role(&mut self, name: &str) -> Result<()> {
         let role = self.retrieve_role(name)?;
         self.use_role_obj(role)
     }
 
+    /// Uses the given role object
     pub fn use_role_obj(&mut self, role: Role) -> Result<()> {
         if self.agent.is_some() {
             bail!("Cannot perform this operation because you are using a agent")
@@ -900,6 +948,7 @@ impl Config {
         Ok(())
     }
 
+    /// Returns info about the current role
     pub fn role_info(&self) -> Result<String> {
         if let Some(session) = &self.session {
             if session.role_name().is_some() {
@@ -915,6 +964,7 @@ impl Config {
         }
     }
 
+    /// Exits the current role
     pub fn exit_role(&mut self) -> Result<()> {
         if let Some(session) = self.session.as_mut() {
             session.guard_empty()?;
@@ -925,6 +975,7 @@ impl Config {
         Ok(())
     }
 
+    /// Retrieves a role by name
     pub fn retrieve_role(&self, name: &str) -> Result<Role> {
         let names = Self::list_roles(false);
         let mut role = if names.contains(&name.to_string()) {
@@ -949,6 +1000,7 @@ impl Config {
         Ok(role)
     }
 
+    /// Creates a new role with the given name
     pub fn new_role(&mut self, name: &str) -> Result<()> {
         if self.macro_flag {
             bail!("No role");
@@ -964,6 +1016,7 @@ impl Config {
         Ok(())
     }
 
+    /// Edits the current role
     pub fn edit_role(&mut self) -> Result<()> {
         let role_name;
         if let Some(session) = self.session.as_ref() {
@@ -984,6 +1037,7 @@ impl Config {
         self.use_role(&name)
     }
 
+    /// Creates or updates a role
     pub fn upsert_role(&mut self, name: &str) -> Result<()> {
         let role_path = Self::role_file(name);
         ensure_parent_exists(&role_path)?;
@@ -995,6 +1049,7 @@ impl Config {
         Ok(())
     }
 
+    /// Saves the current role
     pub fn save_role(&mut self, name: Option<&str>) -> Result<()> {
         let mut role_name = match &self.role {
             Some(role) => {
@@ -1030,6 +1085,7 @@ impl Config {
         Ok(())
     }
 
+    /// Returns all available roles
     pub fn all_roles() -> Vec<Role> {
         let mut roles: HashMap<String, Role> = Role::list_builtin_roles()
             .iter()
@@ -1047,6 +1103,7 @@ impl Config {
         roles
     }
 
+    /// Lists all available role names
     pub fn list_roles(with_builtin: bool) -> Vec<String> {
         let mut names = HashSet::new();
         if let Ok(rd) = read_dir(Self::roles_dir()) {
@@ -1068,12 +1125,13 @@ impl Config {
         names
     }
 
+    /// Checks if a role with the given name exists
     pub fn has_role(name: &str) -> bool {
         let names = Self::list_roles(true);
         names.contains(&name.to_string())
     }
 
-    /// Create AgentConfigs for each agent in the agents directory.
+    /// Lists all available agent names
     pub fn list_agents() -> Vec<String> {
         read_dir(Self::agents_data_dir())
             .unwrap()
@@ -1082,6 +1140,7 @@ impl Config {
             .collect()
     }
 
+    /// Uses a session with the given name
     pub fn use_session(&mut self, session_name: Option<&str>) -> Result<()> {
         if self.session.is_some() {
             bail!(
@@ -1138,6 +1197,7 @@ impl Config {
         Ok(())
     }
 
+    /// Returns info about the current session
     pub fn session_info(&self) -> Result<String> {
         if let Some(session) = &self.session {
             let render_options = self.render_options()?;
@@ -1157,6 +1217,7 @@ impl Config {
         }
     }
 
+    /// Exits the current session
     pub fn exit_session(&mut self) -> Result<()> {
         if let Some(mut session) = self.session.take() {
             let sessions_dir = self.sessions_dir();
@@ -1166,6 +1227,7 @@ impl Config {
         Ok(())
     }
 
+    /// Saves the current session
     pub fn save_session(&mut self, name: Option<&str>) -> Result<()> {
         let session_name = match &self.session {
             Some(session) => match name {
@@ -1184,6 +1246,7 @@ impl Config {
         Ok(())
     }
 
+    /// Edits the current session
     pub fn edit_session(&mut self) -> Result<()> {
         let name = match &self.session {
             Some(session) => session.name().to_string(),
@@ -1203,6 +1266,7 @@ impl Config {
         Ok(())
     }
 
+    /// Clears all messages from the current session
     pub fn empty_session(&mut self) -> Result<()> {
         if let Some(session) = self.session.as_mut() {
             if let Some(agent) = self.agent.as_ref() {
@@ -1216,6 +1280,7 @@ impl Config {
         Ok(())
     }
 
+    /// Forces the current session to be saved
     pub fn set_save_session_this_time(&mut self) -> Result<()> {
         if let Some(session) = self.session.as_mut() {
             session.set_save_session_this_time();
@@ -1225,14 +1290,17 @@ impl Config {
         Ok(())
     }
 
+    /// Lists all available sessions
     pub fn list_sessions(&self) -> Vec<String> {
         list_file_names(self.sessions_dir(), ".yaml")
     }
 
+    /// Lists all auto-named sessions
     pub fn list_autoname_sessions(&self) -> Vec<String> {
         list_file_names(self.sessions_dir().join("_"), ".yaml")
     }
 
+    /// Checks if session compression is needed
     pub fn maybe_compress_session(config: GlobalConfig) {
         let mut need_compress = false;
         {
@@ -1267,6 +1335,7 @@ impl Config {
         });
     }
 
+    /// Compresses the current session
     pub async fn compress_session(config: &GlobalConfig) -> Result<()> {
         match config.read().session.as_ref() {
             Some(session) => {
@@ -1296,6 +1365,7 @@ impl Config {
         Ok(())
     }
 
+    /// Checks if session is currently being compressed
     pub fn is_compressing_session(&self) -> bool {
         self.session
             .as_ref()
@@ -1303,6 +1373,7 @@ impl Config {
             .unwrap_or_default()
     }
 
+    /// Checks if session auto-naming is needed
     pub fn maybe_autoname_session(config: GlobalConfig) {
         let mut need_autoname = false;
         if let Some(session) = config.write().session.as_mut() {
@@ -1330,6 +1401,7 @@ impl Config {
         });
     }
 
+    /// Auto-names the current session
     pub async fn autoname_session(config: &GlobalConfig) -> Result<()> {
         let text = match config
             .read()
@@ -1349,6 +1421,7 @@ impl Config {
         Ok(())
     }
 
+    /// Uses a session with the given name
     pub async fn use_rag(
         config: &GlobalConfig,
         rag: Option<&str>,
@@ -1383,6 +1456,7 @@ impl Config {
         Ok(())
     }
 
+    /// Edits the RAG documentation
     pub async fn edit_rag_docs(config: &GlobalConfig, abort_signal: AbortSignal) -> Result<()> {
         let mut rag = match config.read().rag.clone() {
             Some(v) => v.as_ref().clone(),
@@ -1431,6 +1505,7 @@ impl Config {
         Ok(())
     }
 
+    /// Lists a RAG's sources
     pub fn rag_sources(config: &GlobalConfig) -> Result<String> {
         match config.read().rag.as_ref() {
             Some(rag) => match rag.get_last_sources() {
@@ -1486,6 +1561,7 @@ impl Config {
         }
     }
 
+    /// Returns the RAG template
     pub fn rag_template(&self, embeddings: &str, text: &str) -> String {
         if embeddings.is_empty() {
             return text.to_string();
@@ -1535,6 +1611,7 @@ impl Config {
         }
     }
 
+    /// Returns the agent banner
     pub fn agent_banner(&self) -> Result<String> {
         if let Some(agent) = &self.agent {
             Ok(agent.banner())

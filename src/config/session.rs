@@ -67,6 +67,7 @@ pub struct Session {
 }
 
 impl Session {
+    /// Creates a new session with the given config and name, initializing with default values
     pub fn new(config: &Config, name: &str) -> Self {
         let role = config.extract_role();
         let mut session = Self {
@@ -79,6 +80,7 @@ impl Session {
         session
     }
 
+    /// Loads a session from a YAML file at the given path
     pub fn load(config: &Config, name: &str, path: &Path) -> Result<Self> {
         let content = read_to_string(path)
             .with_context(|| format!("Failed to load session {} at {}", name, path.display()))?;
@@ -107,48 +109,58 @@ impl Session {
         Ok(session)
     }
 
+    /// Returns true if the session has no messages (regular or compressed).
     pub fn is_empty(&self) -> bool {
         self.messages.is_empty() && self.compressed_messages.is_empty()
     }
 
+    /// Returns the name of the session
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the role name if one is set
     pub fn role_name(&self) -> Option<&str> {
         self.role_name.as_deref()
     }
 
+    /// Returns whether the session has unsaved changes
     pub fn dirty(&self) -> bool {
         self.dirty
     }
 
-    /// Retrieve the save_session flag from the Session.
+    /// Returns the save_session flag indicating if session should be persisted
     pub fn save_session(&self) -> Option<bool> {
         self.save_session
     }
 
+    /// Calculates total token count for all messages in the session
     pub fn tokens(&self) -> usize {
         self.model().total_tokens(&self.messages)
     }
 
+    /// Checks if session contains any user messages
     pub fn has_user_messages(&self) -> bool {
         self.messages.iter().any(|v| v.role.is_user())
     }
 
+    /// Returns the count of user messages in the session
     pub fn user_messages_len(&self) -> usize {
         self.messages.iter().filter(|v| v.role.is_user()).count()
     }
 
+    /// Returns the chat ID if one is set
     pub fn chat_id(&self) -> Option<&str> {
         self.chat_id.as_deref()
     }
 
+    /// Set the remote chat ID for this session.
     pub fn set_chat_id(&mut self, chat_id: &str) {
         self.chat_id = Some(chat_id.to_string());
         self.dirty = true;
     }
 
+    /// Exports session data as YAML including model info, settings, and messages
     pub fn export(&self) -> Result<String> {
         let mut data = json!({
             "path": self.path,
@@ -181,6 +193,7 @@ impl Session {
         Ok(output)
     }
 
+    /// Renders session content using markdown formatting.
     pub fn render(
         &self,
         render: &mut MarkdownRender,
@@ -261,6 +274,7 @@ impl Session {
         Ok(lines.join("\n"))
     }
 
+    /// Returns token usage statistics (total tokens and percentage of max)
     pub fn tokens_usage(&self) -> (usize, f32) {
         let tokens = self.tokens();
         let max_input_tokens = self.model().max_input_tokens().unwrap_or_default();
@@ -273,6 +287,7 @@ impl Session {
         (tokens, percent)
     }
 
+    /// Sets the role for this session, updating model and related settings
     pub fn set_role(&mut self, role: Role) {
         self.model_id = role.model().id();
         self.temperature = role.temperature();
@@ -284,11 +299,13 @@ impl Session {
         self.dirty = true;
     }
 
+    /// Clears the current role settings
     pub fn clear_role(&mut self) {
         self.role_name = None;
         self.role_prompt.clear();
     }
 
+    /// Syncs agent settings with this session
     pub fn sync_agent(&mut self, agent: &Agent) {
         self.role_name = None;
         self.role_prompt = agent.interpolated_instructions();
@@ -296,14 +313,17 @@ impl Session {
         self.agent_instructions = self.role_prompt.clone();
     }
 
+    /// Returns reference to agent variables
     pub fn agent_variables(&self) -> &AgentVariables {
         &self.agent_variables
     }
 
+    /// Returns agent instructions string
     pub fn agent_instructions(&self) -> &str {
         &self.agent_instructions
     }
 
+    /// Sets whether session should be saved
     pub fn set_save_session(&mut self, value: Option<bool>) {
         if self.save_session != value {
             self.save_session = value;
@@ -311,10 +331,12 @@ impl Session {
         }
     }
 
+    /// Forces session to be saved this time regardless of settings
     pub fn set_save_session_this_time(&mut self) {
         self.save_session_this_time = true;
     }
 
+    /// Sets the token threshold for message compression
     pub fn set_compress_threshold(&mut self, value: Option<usize>) {
         if self.compress_threshold != value {
             self.compress_threshold = value;
@@ -322,6 +344,7 @@ impl Session {
         }
     }
 
+    /// Checks if session needs compression based on token threshold
     pub fn need_compress(&self, global_compress_threshold: usize) -> bool {
         if self.compressing {
             return false;
@@ -333,14 +356,17 @@ impl Session {
         self.tokens() > threshold
     }
 
+    /// Returns whether session is currently being compressed
     pub fn compressing(&self) -> bool {
         self.compressing
     }
 
+    /// Sets compression state
     pub fn set_compressing(&mut self, compressing: bool) {
         self.compressing = compressing;
     }
 
+    /// Compresses messages using the given prompt
     pub fn compress(&mut self, mut prompt: String) {
         if let Some(system_prompt) = self.messages.first().and_then(|v| {
             if MessageRole::System == v.role {
@@ -361,24 +387,29 @@ impl Session {
         self.dirty = true;
     }
 
+    /// Checks if session needs auto-naming
     pub fn need_autoname(&self) -> bool {
         self.autoname.as_ref().map(|v| v.need()).unwrap_or_default()
     }
 
+    /// Sets auto-naming state
     pub fn set_autonaming(&mut self, naming: bool) {
         if let Some(v) = self.autoname.as_mut() {
             v.naming = naming;
         }
     }
 
+    /// Returns chat history for auto-naming if available
     pub fn chat_history_for_autonaming(&self) -> Option<String> {
         self.autoname.as_ref().and_then(|v| v.chat_history.clone())
     }
 
+    /// Returns auto-generated name if available
     pub fn autoname(&self) -> Option<&str> {
         self.autoname.as_ref().and_then(|v| v.name.as_deref())
     }
 
+    /// Sets auto-generated name
     pub fn set_autoname(&mut self, value: &str) {
         let name = value
             .chars()
@@ -387,6 +418,7 @@ impl Session {
         self.autoname = Some(AutoName::new(name));
     }
 
+    /// Handles session exit, saving if needed
     pub fn exit(&mut self, session_dir: &Path, is_repl: bool) -> Result<()> {
         let mut save_session = self.save_session();
         if self.save_session_this_time {
@@ -435,6 +467,7 @@ impl Session {
         Ok(())
     }
 
+    /// Saves session to file at given path
     pub fn save(&mut self, session_name: &str, session_path: &Path, is_repl: bool) -> Result<()> {
         ensure_parent_exists(session_path)?;
 
@@ -463,6 +496,7 @@ impl Session {
         Ok(())
     }
 
+    /// Ensures session is empty, returns error if not
     pub fn guard_empty(&self) -> Result<()> {
         if !self.is_empty() {
             bail!("Cannot perform this operation because the session has messages, please `.empty session` first.");
@@ -470,6 +504,7 @@ impl Session {
         Ok(())
     }
 
+    /// Adds a new message to the session
     pub fn add_message(&mut self, input: &Input, output: &str) -> Result<()> {
         if input.continue_output().is_some() {
             if let Some(message) = self.messages.last_mut() {
@@ -511,6 +546,7 @@ impl Session {
         Ok(())
     }
 
+    /// Clears all messages and related data from session
     pub fn clear_messages(&mut self) {
         self.messages.clear();
         self.compressed_messages.clear();
@@ -519,11 +555,13 @@ impl Session {
         self.dirty = true;
     }
 
+    /// Returns YAML representation of messages
     pub fn echo_messages(&self, input: &Input) -> String {
         let messages = self.build_messages(input);
         serde_yaml::to_string(&messages).unwrap_or_else(|_| "Unable to echo message".into())
     }
 
+    /// Builds message list for current input
     pub fn build_messages(&self, input: &Input) -> Vec<Message> {
         let mut messages = self.messages.clone();
         if input.continue_output().is_some() {
@@ -552,6 +590,7 @@ impl Session {
         messages
     }
 
+    /// Returns compressed messages
     pub fn get_compressed_messages(&self) -> Vec<Message> {
         self.compressed_messages.clone()
     }
