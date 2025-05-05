@@ -4,6 +4,7 @@ use crate::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use futures::future::join_all;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -12,14 +13,20 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use tokio::task::JoinHandle;
 
 #[cfg(windows)]
 const PATH_SEP: &str = ";";
 #[cfg(not(windows))]
 const PATH_SEP: &str = ":";
 
-pub fn eval_tool_calls(config: &GlobalConfig, mut calls: Vec<ToolCall>) -> Result<Vec<ToolResult>> {
-    let mut output = vec![];
+type ToolJoinResult = (usize, ToolCall, Result<Value>);
+
+pub async fn eval_tool_calls(
+    config: &GlobalConfig,
+    mut calls: Vec<ToolCall>,
+) -> Result<Vec<ToolResult>> {
+    let output: Vec<ToolResult> = vec![];
     if calls.is_empty() {
         return Ok(output);
     }
@@ -27,31 +34,62 @@ pub fn eval_tool_calls(config: &GlobalConfig, mut calls: Vec<ToolCall>) -> Resul
     if calls.is_empty() {
         bail!("The request was aborted because an infinite loop of function calls was detected.")
     }
-    let mut is_all_null = true;
-    for call in calls {
-        let result = match call.eval(config) {
-            Ok(result) => {
-                if result.is_null() {
-                    json!("DONE")
-                } else {
-                    is_all_null = false;
-                    result
-                }
-            },
-            Err(e) => {
-                is_all_null = false;
-                json!({
-                    "error": true,
-                    "message": e.to_string()
-                })
+
+    // Dependencies
+    let functions = &config.read().functions;
+    let agent = &config.read().agent;
+
+    let mut results_map: HashMap<usize, ToolResult> = HashMap::new(); // To store results and reorder later
+    let mut concurrent_tasks: Vec<JoinHandle<ToolJoinResult>> = vec![];
+
+    for (index, call) in calls.into_iter().enumerate() {
+        let call_config = ToolCallConfig::extract(&call.name, &functions, &agent)?;
+
+        if call_config.concurrent {
+            let task: JoinHandle<ToolJoinResult> = tokio::spawn(async move {
+                let result = call.eval(call_config).await;
+                (index, call, result)
+            });
+            concurrent_tasks.push(task);
+        } else {
+            let result = call.eval(call_config).await;
+            results_map.insert(index, ToolResult::new_from_eval_result(call, result));
+        }
+    }
+
+    // Wait for all concurrent tasks to complete
+    let concurrent_results = join_all(concurrent_tasks).await;
+
+    // Process results from concurrent tasks
+    for join_result in concurrent_results {
+        match join_result {
+            Ok((index, call, eval_result)) => {
+                results_map.insert(index, ToolResult::new_from_eval_result(call, eval_result));
             }
-        };
-        output.push(ToolResult::new(call, result));
+            Err(e) => {
+                bail!("A concurrent tool call task failed: {}", e);
+            }
+        }
     }
+
+    // Reconstruct the output vector in the original order
+    let mut final_output = Vec::with_capacity(results_map.len());
+    for i in 0..results_map.len() {
+        if let Some(result) = results_map.remove(&i) {
+            final_output.push(result);
+        } else {
+            // This shouldn't happen if logic is correct
+            bail!("Failed to reconstruct tool call results in order");
+        }
+    }
+
+    let is_all_null = final_output
+        .iter()
+        .all(|tr| tr.output.is_null() || tr.output == json!("DONE"));
     if is_all_null {
-        output = vec![];
+        final_output = vec![];
     }
-    Ok(output)
+    Ok(final_output)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -63,6 +101,25 @@ pub struct ToolResult {
 impl ToolResult {
     pub fn new(call: ToolCall, output: Value) -> Self {
         Self { call, output }
+    }
+
+    pub fn new_from_eval_result(call: ToolCall, eval_result: Result<Value>) -> Self {
+        let output = match eval_result {
+            Ok(result) => {
+                if result.is_null() {
+                    json!("DONE")
+                } else {
+                    result
+                }
+            }
+            Err(e) => {
+                json!({
+                    "error": true,
+                    "message": e.to_string()
+                })
+            }
+        };
+        Self::new(call, output)
     }
 }
 
@@ -95,11 +152,10 @@ impl Functions {
     }
 }
 
+/// Loads function declarations from a file.
 pub fn load_declarations(path: &Path) -> Result<Vec<FunctionDeclaration>> {
     let declarations: Vec<FunctionDeclaration> = if path.exists() {
-        let ctx = || {
-            format!("Failed to load functions at {}", path.display())
-        };
+        let ctx = || format!("Failed to load functions at {}", path.display());
         let content = fs::read_to_string(path).with_context(ctx)?;
         serde_json::from_str(&content).with_context(ctx)?
     } else {
@@ -115,6 +171,8 @@ pub struct FunctionDeclaration {
     pub parameters: JsonSchema,
     #[serde(skip_serializing, default)]
     pub agent: bool,
+    #[serde(default)]
+    pub allow_concurrency: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,7 +211,59 @@ pub struct ToolCall {
     pub id: Option<String>,
 }
 
-type CallConfig = (String, String, Vec<String>, HashMap<String, String>);
+struct ToolCallConfig {
+    pub name: String,
+    pub cmd: String,
+    pub args: Vec<String>,
+    pub envs: HashMap<String, String>,
+    pub concurrent: bool,
+}
+
+impl ToolCallConfig {
+    pub fn extract(
+        function_name: &str,
+        functions: &Functions,
+        agent: &Option<Agent>,
+    ) -> Result<Self> {
+        if let Some(agent) = agent {
+            if let Some(function) = agent.functions().find(&function_name) {
+                if function.agent {
+                    let config = Self::from_agent(function, agent);
+                    if let Some(config) = config {
+                        return Ok(config);
+                    }
+                }
+            }
+        }
+        let function = functions
+            .find(&function_name)
+            .ok_or(anyhow!("Function not found: {function_name}"))?;
+        Ok(Self::from_declaration(function))
+    }
+
+    pub fn from_declaration(function: &FunctionDeclaration) -> Self {
+        Self {
+            name: function.name.clone(),
+            cmd: function.name.clone(),
+            args: vec![],
+            envs: Default::default(),
+            concurrent: function.allow_concurrency,
+        }
+    }
+
+    pub fn from_agent(function: &FunctionDeclaration, agent: &Agent) -> Option<Self> {
+        if !function.agent {
+            return None;
+        }
+        Some(Self {
+            name: format!("{}-{}", agent.name(), &function.name),
+            cmd: agent.name().to_string(),
+            args: vec![function.name.clone()],
+            envs: agent.variable_envs(),
+            concurrent: function.allow_concurrency,
+        })
+    }
+}
 
 impl ToolCall {
     pub fn dedup(calls: Vec<Self>) -> Vec<Self> {
@@ -183,11 +293,11 @@ impl ToolCall {
         }
     }
 
-    pub fn eval(&self, config: &GlobalConfig) -> Result<Value> {
-        let (call_name, cmd_name, mut cmd_args, envs) = match &config.read().agent {
-            Some(agent) => self.extract_call_config_from_agent(config, agent)?,
-            None => self.extract_call_config_from_config(config)?,
-        };
+    pub async fn eval(&self, config: ToolCallConfig) -> Result<Value> {
+        let call_name = config.name;
+        let cmd_name = config.cmd;
+        let mut cmd_args = config.args;
+        let envs = config.envs;
 
         let json_data = if self.arguments.is_object() {
             self.arguments.clone()
@@ -197,10 +307,7 @@ impl ToolCall {
             })?;
             arguments
         } else {
-            bail!(
-                "The call '{call_name}' has invalid arguments: {}",
-                self.arguments
-            );
+            bail!("The call '{call_name}' has invalid arguments: {}", self.arguments);
         };
 
         cmd_args.push(json_data.to_string());
@@ -214,50 +321,9 @@ impl ToolCall {
 
         Ok(output)
     }
-
-    fn extract_call_config_from_agent(
-        &self,
-        config: &GlobalConfig,
-        agent: &Agent,
-    ) -> Result<CallConfig> {
-        let function_name = self.name.clone();
-        match agent.functions().find(&function_name) {
-            Some(function) => {
-                let agent_name = agent.name().to_string();
-                if function.agent {
-                    Ok((
-                        format!("{agent_name}-{function_name}"),
-                        agent_name,
-                        vec![function_name],
-                        agent.variable_envs(),
-                    ))
-                } else {
-                    Ok((
-                        function_name.clone(),
-                        function_name,
-                        vec![],
-                        Default::default(),
-                    ))
-                }
-            }
-            None => self.extract_call_config_from_config(config),
-        }
-    }
-
-    fn extract_call_config_from_config(&self, config: &GlobalConfig) -> Result<CallConfig> {
-        let function_name = self.name.clone();
-        match config.read().functions.contains(&function_name) {
-            true => Ok((
-                function_name.clone(),
-                function_name,
-                vec![],
-                Default::default(),
-            )),
-            false => bail!("Unexpected call: {function_name} {}", self.arguments),
-        }
-    }
 }
 
+/// Execute a local function.
 pub fn run_llm_function(
     cmd_name: String,
     cmd_args: Vec<String>,
