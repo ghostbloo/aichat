@@ -140,3 +140,24 @@ pub async fn chat_get_messages(
     let messages = response.json::<Vec<ChatMessage>>().await?;
     Ok(messages)
 }
+
+pub async fn chat_set_summary(
+    client: &MemoryClient,
+    chat_id: &str,
+    summary: &str,
+) -> Result<()> {
+    let response = client
+        .client
+        .put(format!("{}/chats/{}/summary", &client.config.base_url, chat_id))
+        .json(&json!({ "summary": summary }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let error = response.text().await.unwrap_or_default();
+        warn!("Failed to set chat summary: {}", error);
+        return Err(anyhow::anyhow!("Failed to set chat summary: {}", error));
+    }
+
+    Ok(())
+}

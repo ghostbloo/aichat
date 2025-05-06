@@ -12,6 +12,7 @@ use crate::config::{
     macro_execute, AgentVariables, AssertState, Config, GlobalConfig, Input, LastMessage, StateFlags,
 };
 use crate::render::render_error;
+use crate::config::session::{maybe_compress_session, compress_session};
 use crate::utils::{
     abortable_run_with_spinner, create_abort_signal, dimmed_text, set_text, temp_file, AbortSignal,
 };
@@ -540,7 +541,7 @@ pub async fn run_repl_command(
             ".compress" => match args {
                 Some("session") => {
                     abortable_run_with_spinner(
-                        Config::compress_session(config),
+                        compress_session(config),
                         "Compressing",
                         abort_signal.clone(),
                     )
@@ -752,7 +753,7 @@ async fn ask(
         .await
     } else {
         Config::maybe_autoname_session(config.clone());
-        Config::maybe_compress_session(config.clone());
+        maybe_compress_session(config.clone());
         Ok(())
     }
 }

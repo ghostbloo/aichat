@@ -1,5 +1,6 @@
+use crate::config::session::compress_session;
 use crate::config::GlobalConfig;
-use crate::memory::chats::{chat_add_messages, chat_create, ChatMessage};
+use crate::memory::chats::{chat_add_messages, chat_create, chat_set_summary, ChatMessage};
 use anyhow::{Context, Result};
 use log::debug;
 
@@ -7,6 +8,8 @@ use log::debug;
 /// If the Session has no chat ID, a new Chat is created and the ID is written to the Session.
 pub async fn sync_session(config: &GlobalConfig, name: Option<&str>) -> Result<()> {
     debug!("Syncing session to memory server");
+
+    let summary = compress_session(config).await?;
 
     // Read config and get session data
     let (memory_client, existing_chat_id, session_name, messages) = {
@@ -59,6 +62,7 @@ pub async fn sync_session(config: &GlobalConfig, name: Option<&str>) -> Result<(
     };
 
     chat_add_messages(&memory_client, &chat_id, messages).await?;
+    chat_set_summary(&memory_client, &chat_id, &summary).await?;
 
     // Set is_sync to true for all compressed messages
     config

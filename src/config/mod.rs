@@ -1,7 +1,7 @@
 mod agent;
 mod input;
 mod role;
-mod session;
+pub mod session;
 pub mod sync;
 
 pub use self::agent::{
@@ -1308,71 +1308,6 @@ impl Config {
     /// Lists all auto-named sessions
     pub fn list_autoname_sessions(&self) -> Vec<String> {
         list_file_names(self.sessions_dir().join("_"), ".yaml")
-    }
-
-    /// Checks if session compression is needed
-    pub fn maybe_compress_session(config: GlobalConfig) {
-        let mut need_compress = false;
-        {
-            let mut config = config.write();
-            let compress_threshold = config.compress_threshold;
-            if let Some(session) = config.session.as_mut() {
-                if session.need_compress(compress_threshold) {
-                    session.set_compressing(true);
-                    need_compress = true;
-                }
-            }
-        };
-        if !need_compress {
-            return;
-        }
-        let color = if config.read().light_theme {
-            nu_ansi_term::Color::LightGray
-        } else {
-            nu_ansi_term::Color::DarkGray
-        };
-        print!(
-            "\n📢 {}\n",
-            color.italic().paint("Compressing the session."),
-        );
-        tokio::spawn(async move {
-            if let Err(err) = Config::compress_session(&config).await {
-                warn!("Failed to compress the session: {err}");
-            }
-            if let Some(session) = config.write().session.as_mut() {
-                session.set_compressing(false);
-            }
-        });
-    }
-
-    /// Compresses the current session
-    pub async fn compress_session(config: &GlobalConfig) -> Result<()> {
-        match config.read().session.as_ref() {
-            Some(session) => {
-                if !session.has_user_messages() {
-                    bail!("No need to compress since there are no messages in the session")
-                }
-            }
-            None => bail!("No session"),
-        }
-
-        let prompt = config
-            .read()
-            .summarize_prompt
-            .clone()
-            .unwrap_or_else(|| SUMMARIZE_PROMPT.into());
-        let input = Input::from_str(config, &prompt, None);
-        let summary = input.fetch_chat_text().await?;
-        let summary_prompt = config
-            .read()
-            .summary_prompt
-            .clone()
-            .unwrap_or_else(|| SUMMARY_PROMPT.into());
-        if let Some(session) = config.write().session.as_mut() {
-            session.compress(format!("{}{}", summary_prompt, summary));
-        }
-        config.write().discontinuous_last_message();
-        Ok(())
     }
 
     /// Checks if session is currently being compressed
