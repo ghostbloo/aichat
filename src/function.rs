@@ -211,7 +211,7 @@ pub struct ToolCall {
     pub id: Option<String>,
 }
 
-struct ToolCallConfig {
+pub struct ToolCallConfig {
     pub name: String,
     pub cmd: String,
     pub args: Vec<String>,

@@ -84,7 +84,7 @@ pub fn get_agent_functions(name: &str, server: Arc<Server>) -> Result<Response<B
 }
 
 pub fn get_agent_sessions(name: &str) -> Result<Response<BoxBody<Bytes, Infallible>>> {
-    let sessions = list_file_names(&Config::agent_sessions_dir(name), ".yaml");
+    let sessions = list_file_names(Config::agent_sessions_dir(name), ".yaml");
     let data = json!({ "data": sessions });
     json_response(&data.to_string())
 }

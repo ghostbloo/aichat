@@ -35,7 +35,7 @@ pub async fn sync_session(config: &GlobalConfig, name: Option<&str>) -> Result<(
         let messages: Vec<ChatMessage> = session_ref
             .get_compressed_messages()
             .iter()
-            .filter(|m| m.is_sync != true)
+            .filter(|m| !m.is_sync)
             .map(|m| ChatMessage {
                 role: m.role,
                 content: m.content.to_text(),
