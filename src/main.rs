@@ -244,7 +244,7 @@ async fn start_interactive(config: &GlobalConfig) -> Result<()> {
 }
 
 /// Prompts an LLM to write a shell command from a natural language prompt.
-/// 
+///
 /// This function is recursive when the `-r` flag is passed (for revising the command).
 async fn shell_execute(
     config: &GlobalConfig,
@@ -306,7 +306,8 @@ async fn shell_execute(
                     let revision = Text::new("Enter your revision:").prompt()?;
                     let text = format!("{}\n{revision}", input.text());
                     input.set_text(text);
-                    return Box::pin(shell_execute(config, shell, input, abort_signal.clone())).await;
+                    return Box::pin(shell_execute(config, shell, input, abort_signal.clone()))
+                        .await;
                 }
                 "d" => {
                     let role = config.read().retrieve_role(EXPLAIN_SHELL_ROLE)?;

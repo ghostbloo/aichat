@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::client::MessageRole;
 use crate::memory::MemoryClient;
 use anyhow::{Context, Result};
@@ -104,7 +106,10 @@ pub async fn chat_add_messages(
 
     let response = client
         .client
-        .put(format!("{}/chats/{}/messages", &client.config.base_url, chat_id))
+        .put(format!(
+            "{}/chats/{}/messages",
+            &client.config.base_url, chat_id
+        ))
         .json(&json!({
             "messages": messages,
         }))
@@ -121,13 +126,13 @@ pub async fn chat_add_messages(
 }
 
 /// Get all messages from a Chat on the memory server.
-pub async fn chat_get_messages(
-    client: &MemoryClient,
-    chat_id: &str,
-) -> Result<Vec<ChatMessage>> {
+pub async fn chat_get_messages(client: &MemoryClient, chat_id: &str) -> Result<Vec<ChatMessage>> {
     let response = client
         .client
-        .get(format!("{}/chats/{}/messages", &client.config.base_url, chat_id))
+        .get(format!(
+            "{}/chats/{}/messages",
+            &client.config.base_url, chat_id
+        ))
         .send()
         .await?;
 
@@ -141,14 +146,13 @@ pub async fn chat_get_messages(
     Ok(messages)
 }
 
-pub async fn chat_set_summary(
-    client: &MemoryClient,
-    chat_id: &str,
-    summary: &str,
-) -> Result<()> {
+pub async fn chat_set_summary(client: &MemoryClient, chat_id: &str, summary: &str) -> Result<()> {
     let response = client
         .client
-        .put(format!("{}/chats/{}/summary", &client.config.base_url, chat_id))
+        .put(format!(
+            "{}/chats/{}/summary",
+            &client.config.base_url, chat_id
+        ))
         .json(&json!({ "summary": summary }))
         .send()
         .await?;

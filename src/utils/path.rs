@@ -172,7 +172,14 @@ async fn list_files(
             let path = entry.path();
             if path.is_dir() {
                 if !current_only {
-                    Box::pin(list_files(files, &path, suffixes, current_only, bail_non_exist)).await?;
+                    Box::pin(list_files(
+                        files,
+                        &path,
+                        suffixes,
+                        current_only,
+                        bail_non_exist,
+                    ))
+                    .await?;
                 }
             } else {
                 add_file(files, suffixes, &path);

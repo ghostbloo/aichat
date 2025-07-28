@@ -7,12 +7,13 @@ use self::highlighter::ReplHighlighter;
 use self::prompt::ReplPrompt;
 
 use crate::client::{call_chat_completions, call_chat_completions_streaming};
+use crate::config::session::{compress_session, maybe_compress_session};
 use crate::config::sync::sync_session;
 use crate::config::{
-    macro_execute, AgentVariables, AssertState, Config, GlobalConfig, Input, LastMessage, StateFlags,
+    macro_execute, AgentVariables, AssertState, Config, GlobalConfig, Input, LastMessage,
+    StateFlags,
 };
 use crate::render::render_error;
-use crate::config::session::{maybe_compress_session, compress_session};
 use crate::utils::{
     abortable_run_with_spinner, create_abort_signal, dimmed_text, set_text, temp_file, AbortSignal,
 };
@@ -718,7 +719,7 @@ pub async fn run_repl_command(
 }
 
 /// REPL handler for processing and sending user input to a completions model. Stores the response in session state.
-/// 
+///
 /// This function uses recursion when handling tool calls.
 async fn ask(
     config: &GlobalConfig,

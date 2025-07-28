@@ -69,7 +69,7 @@ which = "8.0.0"
 fuzzy-matcher = "0.3.7"
 regex = "1"
 once_cell = "1"
-rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "transport-child-process", "transport-sse"] }
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "transport-child-process"] }
 terminal-colorsaurus = "0.4.8"
 duct = "1.0.0"
 

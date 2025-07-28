@@ -1,14 +1,17 @@
 mod agent;
 mod input;
 mod role;
-mod session;
+pub mod session;
+pub mod sync;
 
-pub use self::agent::{complete_agent_variables, list_agents, Agent, AgentVariables};
+pub use self::agent::{
+    complete_agent_variables, list_agents, Agent, AgentConfig, AgentDefinition, AgentVariables,
+};
 pub use self::input::Input;
 pub use self::role::{
     Role, RoleLike, CODE_ROLE, CREATE_TITLE_ROLE, EXPLAIN_SHELL_ROLE, SHELL_ROLE,
 };
-use self::session::Session;
+pub use self::session::Session;
 
 use crate::client::{
     create_client_config, list_client_types, list_models, ClientConfig, MessageContentToolCalls,
@@ -60,6 +63,7 @@ const FUNCTIONS_DIR_NAME: &str = "functions";
 const FUNCTIONS_FILE_NAME: &str = "functions.json";
 const FUNCTIONS_BIN_DIR_NAME: &str = "bin";
 const AGENTS_DIR_NAME: &str = "agents";
+const AGENT_DEFINITION_FILE_NAME: &str = "index.yaml";
 
 const CLIENTS_FIELD: &str = "clients";
 
@@ -424,6 +428,14 @@ impl Config {
             Ok(value) => PathBuf::from(value),
             Err(_) => Self::agents_functions_dir().join(name),
         }
+    }
+
+    pub fn agent_definition_file(name: &str) -> PathBuf {
+        Self::agent_functions_dir(name).join(AGENT_DEFINITION_FILE_NAME)
+    }
+
+    pub fn agent_sessions_dir(name: &str) -> PathBuf {
+        Self::agent_data_dir(name).join(SESSIONS_DIR_NAME)
     }
 
     pub fn models_override_file() -> PathBuf {
@@ -1215,6 +1227,7 @@ impl Config {
         list_file_names(self.sessions_dir().join("_"), ".yaml")
     }
 
+    #[allow(dead_code)]
     pub fn maybe_compress_session(config: GlobalConfig) {
         let mut need_compress = false;
         {
@@ -1249,6 +1262,7 @@ impl Config {
         });
     }
 
+    #[allow(dead_code)]
     pub async fn compress_session(config: &GlobalConfig) -> Result<()> {
         match config.read().session.as_ref() {
             Some(session) => {
@@ -1449,6 +1463,23 @@ impl Config {
         let text = config.read().rag_template(&embeddings, text);
         rag.set_last_sources(&ids);
         Ok(text)
+    }
+
+    pub fn list_agents() -> Vec<String> {
+        match read_dir(Self::agents_data_dir()) {
+            Ok(rd) => rd
+                .flatten()
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if entry.file_type().ok()?.is_dir() {
+                        Some(name)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            Err(_) => vec![],
+        }
     }
 
     pub fn list_rags() -> Vec<String> {

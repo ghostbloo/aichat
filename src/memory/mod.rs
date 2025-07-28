@@ -10,6 +10,7 @@ pub struct MemoryConfig {
 
 /// Client for making requests to the memory server.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MemoryClient {
     pub client: Client,
     pub config: MemoryConfig,

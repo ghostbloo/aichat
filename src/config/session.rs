@@ -150,11 +150,13 @@ impl Session {
     }
 
     /// Returns the chat ID if one is set
+    #[allow(dead_code)]
     pub fn chat_id(&self) -> Option<&str> {
         self.chat_id.as_deref()
     }
 
     /// Set the remote chat ID for this session.
+    #[allow(dead_code)]
     pub fn set_chat_id(&mut self, chat_id: &str) {
         self.chat_id = Some(chat_id.to_string());
         self.dirty = true;
@@ -387,6 +389,7 @@ impl Session {
         self.dirty = true;
     }
 
+    #[allow(dead_code)]
     pub fn set_messages_synced(&mut self) {
         self.dirty = true;
         self.compressed_messages.iter_mut().for_each(|m| {
@@ -604,6 +607,7 @@ impl Session {
     }
 
     /// Returns compressed messages
+    #[allow(dead_code)]
     pub fn get_compressed_messages(&self) -> Vec<Message> {
         self.compressed_messages.clone()
     }
@@ -708,7 +712,7 @@ pub fn maybe_compress_session(config: GlobalConfig) {
     if !need_compress {
         return;
     }
-    let color = if config.read().light_theme {
+    let color = if config.read().light_theme() {
         nu_ansi_term::Color::LightGray
     } else {
         nu_ansi_term::Color::DarkGray
@@ -752,7 +756,9 @@ pub async fn summarize_session(config: &GlobalConfig) -> Result<String> {
         .summarize_prompt
         .clone()
         .unwrap_or_else(|| SUMMARIZE_PROMPT.into());
-    let summary = Input::from_str(config, &prompt, None).fetch_chat_text().await?;
+    let summary = Input::from_str(config, &prompt, None)
+        .fetch_chat_text()
+        .await?;
     let summary_prompt = config
         .read()
         .summary_prompt

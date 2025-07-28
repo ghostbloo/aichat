@@ -1,5 +1,9 @@
-use crate::{config::{AgentConfig, AgentDefinition, Config, Session}, function::load_declarations, utils::list_file_names};
 use crate::serve::Server;
+use crate::{
+    config::{AgentConfig, AgentDefinition, Config, Session},
+    function::load_declarations,
+    utils::list_file_names,
+};
 
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
@@ -43,7 +47,10 @@ pub fn list_sessions() -> Result<Response<BoxBody<Bytes, Infallible>>> {
     json_response(&data.to_string())
 }
 
-pub fn get_session(session_id: &str, server: Arc<Server>) -> Result<Response<BoxBody<Bytes, Infallible>>> {
+pub fn get_session(
+    session_id: &str,
+    server: Arc<Server>,
+) -> Result<Response<BoxBody<Bytes, Infallible>>> {
     let session_path = Config::config_dir()
         .join("sessions")
         .join(session_id)
@@ -73,7 +80,10 @@ pub fn get_agent(name: &str, server: Arc<Server>) -> Result<Response<BoxBody<Byt
     json_response(&data.to_string())
 }
 
-pub fn get_agent_functions(name: &str, server: Arc<Server>) -> Result<Response<BoxBody<Bytes, Infallible>>> {
+pub fn get_agent_functions(
+    name: &str,
+    server: Arc<Server>,
+) -> Result<Response<BoxBody<Bytes, Infallible>>> {
     if !server.agents.contains(&name.to_string()) {
         return Err(anyhow!("Agent not found"));
     }
@@ -99,7 +109,7 @@ pub fn get_agent_session(
         session_id,
         &Config::agent_sessions_dir(agent_name)
             .join(session_id)
-            .with_extension("yaml")
+            .with_extension("yaml"),
     )?;
     let data = json!({ "data": session });
     json_response(&data.to_string())
