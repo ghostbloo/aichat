@@ -158,7 +158,7 @@ async fn run(config: GlobalConfig, cli: Cli, text: Option<String>) -> Result<()>
     }
     if cli.info {
         let info = config.read().info()?;
-        println!("{}", info);
+        println!("{info}");
         return Ok(());
     }
     if let Some(addr) = cli.serve {
@@ -176,9 +176,6 @@ async fn run(config: GlobalConfig, cli: Cli, text: Option<String>) -> Result<()>
         return Ok(());
     }
     if cli.execute && !is_repl {
-        if cfg!(target_os = "macos") && !stdin().is_terminal() {
-            bail!("Unable to read the pipe for shell execution on MacOS")
-        }
         let input = create_input(&config, text, &cli.file, abort_signal.clone()).await?;
         shell_execute(&config, &SHELL, input, abort_signal.clone()).await?;
         return Ok(());
@@ -271,6 +268,9 @@ async fn shell_execute(
         return Ok(());
     }
     if *IS_STDOUT_TERMINAL {
+        if cfg!(target_os = "macos") && !stdin().is_terminal() {
+            bail!("Unable to read the pipe for shell execution on MacOS")
+        }
         let options = ["execute", "revise", "describe", "copy", "quit"];
         let command = color_text(eval_str.trim(), nu_ansi_term::Color::Rgb(255, 165, 0));
         let first_letter_color = nu_ansi_term::Color::Cyan;
@@ -340,7 +340,7 @@ async fn shell_execute(
             break;
         }
     } else {
-        println!("{}", eval_str);
+        println!("{eval_str}");
     }
     Ok(())
 }
