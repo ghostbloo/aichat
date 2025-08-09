@@ -36,8 +36,10 @@ pub async fn eval_tool_calls(
     }
 
     // Dependencies
-    let functions = &config.read().functions;
-    let agent = &config.read().agent;
+    let (functions, agent) = {
+        let config_guard = config.read();
+        (config_guard.functions.clone(), config_guard.agent.clone())
+    };
 
     let mut results_map: HashMap<usize, ToolResult> = HashMap::new(); // To store results and reorder later
     let mut concurrent_tasks: Vec<JoinHandle<ToolJoinResult>> = vec![];
@@ -139,6 +141,7 @@ impl Functions {
         self.declarations.iter().find(|v| v.name == name)
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, name: &str) -> bool {
         self.declarations.iter().any(|v| v.name == name)
     }
@@ -226,7 +229,7 @@ impl ToolCallConfig {
         agent: &Option<Agent>,
     ) -> Result<Self> {
         if let Some(agent) = agent {
-            if let Some(function) = agent.functions().find(&function_name) {
+            if let Some(function) = agent.functions().find(function_name) {
                 if function.agent {
                     let config = Self::from_agent(function, agent);
                     if let Some(config) = config {
@@ -236,7 +239,7 @@ impl ToolCallConfig {
             }
         }
         let function = functions
-            .find(&function_name)
+            .find(function_name)
             .ok_or(anyhow!("Function not found: {function_name}"))?;
         Ok(Self::from_declaration(function))
     }
@@ -307,7 +310,10 @@ impl ToolCall {
             })?;
             arguments
         } else {
-            bail!("The call '{call_name}' has invalid arguments: {}", self.arguments);
+            bail!(
+                "The call '{call_name}' has invalid arguments: {}",
+                self.arguments
+            );
         };
 
         cmd_args.push(json_data.to_string());

@@ -28,12 +28,10 @@ use crate::utils::*;
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use inquire::validator::Validation;
 use inquire::Text;
-use is_terminal::IsTerminal;
 use parking_lot::RwLock;
 use simplelog::{format_description, ConfigBuilder, LevelFilter, SimpleLogger, WriteLogger};
-use std::{env, io::stdin, process, sync::Arc};
+use std::{env, process, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -158,7 +156,7 @@ async fn run(config: GlobalConfig, cli: Cli, text: Option<String>) -> Result<()>
     }
     if cli.info {
         let info = config.read().info()?;
-        println!("{}", info);
+        println!("{info}");
         return Ok(());
     }
     if let Some(addr) = cli.serve {
@@ -176,9 +174,6 @@ async fn run(config: GlobalConfig, cli: Cli, text: Option<String>) -> Result<()>
         return Ok(());
     }
     if cli.execute && !is_repl {
-        if cfg!(target_os = "macos") && !stdin().is_terminal() {
-            bail!("Unable to read the pipe for shell execution on MacOS")
-        }
         let input = create_input(&config, text, &cli.file, abort_signal.clone()).await?;
         shell_execute(&config, &SHELL, input, abort_signal.clone()).await?;
         return Ok(());
@@ -247,7 +242,7 @@ async fn start_interactive(config: &GlobalConfig) -> Result<()> {
 }
 
 /// Prompts an LLM to write a shell command from a natural language prompt.
-/// 
+///
 /// This function is recursive when the `-r` flag is passed (for revising the command).
 async fn shell_execute(
     config: &GlobalConfig,
@@ -281,20 +276,11 @@ async fn shell_execute(
             .join(&dimmed_text(" | "));
         loop {
             println!("{command}");
-            let answer = Text::new(&format!("{prompt_text}:"))
-                .with_default("e")
-                .with_validator(
-                    |input: &str| match matches!(input, "e" | "r" | "d" | "c" | "q") {
-                        true => Ok(Validation::Valid),
-                        false => Ok(Validation::Invalid(
-                            "Invalid option, choice one of e, r, d, c or q".into(),
-                        )),
-                    },
-                )
-                .prompt()?;
+            let answer_char =
+                read_single_key(&['e', 'r', 'd', 'c', 'q'], 'e', &format!("{prompt_text}: "))?;
 
-            match answer.as_str() {
-                "e" => {
+            match answer_char {
+                'e' => {
                     debug!("{} {:?}", shell.cmd, &[&shell.arg, &eval_str]);
                     let code = run_command(&shell.cmd, &[&shell.arg, &eval_str], None)?;
                     if code == 0 && config.read().save_shell_history {
@@ -302,13 +288,14 @@ async fn shell_execute(
                     }
                     process::exit(code);
                 }
-                "r" => {
+                'r' => {
                     let revision = Text::new("Enter your revision:").prompt()?;
                     let text = format!("{}\n{revision}", input.text());
                     input.set_text(text);
-                    return Box::pin(shell_execute(config, shell, input, abort_signal.clone())).await;
+                    return Box::pin(shell_execute(config, shell, input, abort_signal.clone()))
+                        .await;
                 }
-                "d" => {
+                'd' => {
                     let role = config.read().retrieve_role(EXPLAIN_SHELL_ROLE)?;
                     let input = Input::from_str(config, &eval_str, Some(role));
                     if input.stream() {
@@ -331,7 +318,7 @@ async fn shell_execute(
                     println!();
                     continue;
                 }
-                "c" => {
+                'c' => {
                     set_text(&eval_str)?;
                     println!("{}", dimmed_text("✓ Copied the command."));
                 }
@@ -340,7 +327,7 @@ async fn shell_execute(
             break;
         }
     } else {
-        println!("{}", eval_str);
+        println!("{eval_str}");
     }
     Ok(())
 }

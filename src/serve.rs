@@ -1,9 +1,8 @@
-use crate::{client::*, config::*, function::*, rag::*, utils::*};
 use crate::web::{
-    arena_page, get_agent, get_agent_functions, get_agent_session,
-    get_agent_sessions, get_session, list_agents, list_models,
-    list_rags, list_roles, list_sessions, playground_page,
+    arena_page, get_agent, get_agent_functions, get_agent_session, get_agent_sessions, get_session,
+    list_agents, list_models, list_rags, list_roles, list_sessions, playground_page,
 };
+use crate::{client::*, config::*, function::*, rag::*, utils::*};
 
 use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
@@ -43,9 +42,12 @@ const DEFAULT_MODEL_NAME: &str = "default";
 
 static RE_SESSION_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/sessions/([^/]+)$").unwrap());
 static RE_AGENT_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)$").unwrap());
-static RE_AGENT_FUNCTIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/functions$").unwrap());
-static RE_AGENT_SESSIONS_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions$").unwrap());
-static RE_AGENT_SESSION_PATH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions/([^/]+)$").unwrap());
+static RE_AGENT_FUNCTIONS_PATH: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/functions$").unwrap());
+static RE_AGENT_SESSIONS_PATH: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions$").unwrap());
+static RE_AGENT_SESSION_PATH: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^/v1/agents/([^/]+)/sessions/([^/]+)$").unwrap());
 
 type AppResponse = Response<BoxBody<Bytes, Infallible>>;
 
@@ -644,7 +646,7 @@ async fn shutdown_signal() {
 
 fn generate_completion_id() -> String {
     let random_id = chrono::Utc::now().nanosecond();
-    format!("chatcmpl-{}", random_id)
+    format!("chatcmpl-{random_id}")
 }
 
 fn set_cors_header(res: &mut AppResponse) {

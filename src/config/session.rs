@@ -64,6 +64,8 @@ pub struct Session {
     compressing: bool,
     #[serde(skip)]
     autoname: Option<AutoName>,
+    #[serde(skip)]
+    tokens: usize,
 }
 
 impl Session {
@@ -85,7 +87,7 @@ impl Session {
         let content = read_to_string(path)
             .with_context(|| format!("Failed to load session {} at {}", name, path.display()))?;
         let mut session: Self =
-            serde_yaml::from_str(&content).with_context(|| format!("Invalid session {}", name))?;
+            serde_yaml::from_str(&content).with_context(|| format!("Invalid session {name}"))?;
 
         session.model = Model::retrieve_model(config, &session.model_id, ModelType::Chat)?;
 
@@ -105,6 +107,8 @@ impl Session {
                 session.role_prompt = role.prompt().to_string();
             }
         }
+
+        session.update_tokens();
 
         Ok(session)
     }
@@ -136,7 +140,11 @@ impl Session {
 
     /// Calculates total token count for all messages in the session
     pub fn tokens(&self) -> usize {
-        self.model().total_tokens(&self.messages)
+        self.tokens
+    }
+
+    pub fn update_tokens(&mut self) {
+        self.tokens = self.model().total_tokens(&self.messages);
     }
 
     /// Checks if session contains any user messages
@@ -150,11 +158,13 @@ impl Session {
     }
 
     /// Returns the chat ID if one is set
+    #[allow(dead_code)]
     pub fn chat_id(&self) -> Option<&str> {
         self.chat_id.as_deref()
     }
 
     /// Set the remote chat ID for this session.
+    #[allow(dead_code)]
     pub fn set_chat_id(&mut self, chat_id: &str) {
         self.chat_id = Some(chat_id.to_string());
         self.dirty = true;
@@ -184,7 +194,7 @@ impl Session {
             data["max_input_tokens"] = max_input_tokens.into();
         }
         if percent != 0.0 {
-            data["total/max"] = format!("{}%", percent).into();
+            data["total/max"] = format!("{percent}%").into();
         }
         data["messages"] = json!(self.messages);
 
@@ -297,6 +307,7 @@ impl Session {
         self.role_name = convert_option_string(role.name());
         self.role_prompt = role.prompt().to_string();
         self.dirty = true;
+        self.update_tokens();
     }
 
     /// Clears the current role settings
@@ -385,8 +396,10 @@ impl Session {
             MessageContent::Text(prompt),
         ));
         self.dirty = true;
+        self.update_tokens();
     }
 
+    #[allow(dead_code)]
     pub fn set_messages_synced(&mut self) {
         self.dirty = true;
         self.compressed_messages.iter_mut().for_each(|m| {
@@ -550,6 +563,7 @@ impl Session {
             ));
         }
         self.dirty = true;
+        self.update_tokens();
         Ok(())
     }
 
@@ -560,6 +574,7 @@ impl Session {
         self.data_urls.clear();
         self.autoname = None;
         self.dirty = true;
+        self.update_tokens();
     }
 
     /// Returns YAML representation of messages
@@ -574,7 +589,13 @@ impl Session {
         if input.continue_output().is_some() {
             return messages;
         } else if input.regenerate() {
-            messages.pop();
+            while let Some(last) = messages.last() {
+                if !last.role.is_user() {
+                    messages.pop();
+                } else {
+                    break;
+                }
+            }
             return messages;
         }
         let mut need_add_msg = true;
@@ -598,6 +619,7 @@ impl Session {
     }
 
     /// Returns compressed messages
+    #[allow(dead_code)]
     pub fn get_compressed_messages(&self) -> Vec<Message> {
         self.compressed_messages.clone()
     }
@@ -615,10 +637,6 @@ impl RoleLike for Session {
         &self.model
     }
 
-    fn model_mut(&mut self) -> &mut Model {
-        &mut self.model
-    }
-
     fn temperature(&self) -> Option<f64> {
         self.temperature
     }
@@ -631,11 +649,12 @@ impl RoleLike for Session {
         self.use_tools.clone()
     }
 
-    fn set_model(&mut self, model: &Model) {
+    fn set_model(&mut self, model: Model) {
         if self.model().id() != model.id() {
             self.model_id = model.id();
-            self.model = model.clone();
+            self.model = model;
             self.dirty = true;
+            self.update_tokens();
         }
     }
 
@@ -702,7 +721,7 @@ pub fn maybe_compress_session(config: GlobalConfig) {
     if !need_compress {
         return;
     }
-    let color = if config.read().light_theme {
+    let color = if config.read().light_theme() {
         nu_ansi_term::Color::LightGray
     } else {
         nu_ansi_term::Color::DarkGray
@@ -746,7 +765,9 @@ pub async fn summarize_session(config: &GlobalConfig) -> Result<String> {
         .summarize_prompt
         .clone()
         .unwrap_or_else(|| SUMMARIZE_PROMPT.into());
-    let summary = Input::from_str(config, &prompt, None).fetch_chat_text().await?;
+    let summary = Input::from_str(config, &prompt, None)
+        .fetch_chat_text()
+        .await?;
     let summary_prompt = config
         .read()
         .summary_prompt

@@ -432,7 +432,10 @@ pub async fn call_chat_completions(
                     client.global_config().read().print_markdown(&text)?;
                 }
             }
-            Ok((text, eval_tool_calls(client.global_config(), tool_calls).await?))
+            Ok((
+                text,
+                eval_tool_calls(client.global_config(), tool_calls).await?,
+            ))
         }
         Err(err) => Err(err),
     }
@@ -463,7 +466,10 @@ pub async fn call_chat_completions_streaming(
             if !text.is_empty() && !text.ends_with('\n') {
                 println!();
             }
-            Ok((text, eval_tool_calls(client.global_config(), tool_calls).await?))
+            Ok((
+                text,
+                eval_tool_calls(client.global_config(), tool_calls).await?,
+            ))
         }
         Err(err) => {
             if !text.is_empty() {
