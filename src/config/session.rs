@@ -64,6 +64,8 @@ pub struct Session {
     compressing: bool,
     #[serde(skip)]
     autoname: Option<AutoName>,
+    #[serde(skip)]
+    tokens: usize,
 }
 
 impl Session {
@@ -106,6 +108,8 @@ impl Session {
             }
         }
 
+        session.update_tokens();
+
         Ok(session)
     }
 
@@ -136,7 +140,11 @@ impl Session {
 
     /// Calculates total token count for all messages in the session
     pub fn tokens(&self) -> usize {
-        self.model().total_tokens(&self.messages)
+        self.tokens
+    }
+
+    pub fn update_tokens(&mut self) {
+        self.tokens = self.model().total_tokens(&self.messages);
     }
 
     /// Checks if session contains any user messages
@@ -299,6 +307,7 @@ impl Session {
         self.role_name = convert_option_string(role.name());
         self.role_prompt = role.prompt().to_string();
         self.dirty = true;
+        self.update_tokens();
     }
 
     /// Clears the current role settings
@@ -387,6 +396,7 @@ impl Session {
             MessageContent::Text(prompt),
         ));
         self.dirty = true;
+        self.update_tokens();
     }
 
     #[allow(dead_code)]
@@ -553,6 +563,7 @@ impl Session {
             ));
         }
         self.dirty = true;
+        self.update_tokens();
         Ok(())
     }
 
@@ -563,6 +574,7 @@ impl Session {
         self.data_urls.clear();
         self.autoname = None;
         self.dirty = true;
+        self.update_tokens();
     }
 
     /// Returns YAML representation of messages
@@ -625,10 +637,6 @@ impl RoleLike for Session {
         &self.model
     }
 
-    fn model_mut(&mut self) -> &mut Model {
-        &mut self.model
-    }
-
     fn temperature(&self) -> Option<f64> {
         self.temperature
     }
@@ -641,11 +649,12 @@ impl RoleLike for Session {
         self.use_tools.clone()
     }
 
-    fn set_model(&mut self, model: &Model) {
+    fn set_model(&mut self, model: Model) {
         if self.model().id() != model.id() {
             self.model_id = model.id();
-            self.model = model.clone();
+            self.model = model;
             self.dirty = true;
+            self.update_tokens();
         }
     }
 
